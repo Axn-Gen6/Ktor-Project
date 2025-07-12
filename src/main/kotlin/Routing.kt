@@ -1,89 +1,66 @@
 package com.example
 
-import com.example.model.*
-import com.example.repository.BookingRepository
 import io.ktor.server.application.*
-import io.ktor.server.routing.*
-import io.ktor.server.response.*
 import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import io.ktor.http.*
+import kotlinx.serialization.Serializable
 
+@Serializable
+data class Service(
+    val id: Int,
+    val name: String,
+    val description: String,
+    val defaultDurationInMinutes: Int
+)
+
+@Serializable
+data class Appointment(
+    val id: Int,
+    val clientName: String,
+    val clientEmail: String,
+    val appointmentTime: String,
+    val serviceId: Int
+)
+
+val services = mutableListOf<Service>()
+val appointments = mutableListOf<Appointment>()
 fun Application.configureRouting() {
     routing {
-
-        // ---- Services ----
         route("/services") {
-            get {
-                call.respond(BookingRepository.getAllServices())
-            }
-
-            get("{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                val service = id?.let { BookingRepository.getServiceById(it) }
-                if (service != null) {
-                    call.respond(service)
-                } else call.respond(HttpStatusCode.NotFound, "Service not found")
-            }
-
             post {
                 val service = call.receive<Service>()
-                BookingRepository.addService(service)
+                services.add(service)
                 call.respond(HttpStatusCode.Created, service)
             }
-
-            put("{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                val service = call.receive<Service>()
-                if (id != null && BookingRepository.updateService(id, service)) {
-                    call.respond(HttpStatusCode.OK, service)
-                } else call.respond(HttpStatusCode.NotFound, "Service not found")
-            }
-
-            delete("{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                if (id != null && BookingRepository.deleteService(id)) {
-                    call.respond(HttpStatusCode.NoContent)
-                } else call.respond(HttpStatusCode.NotFound, "Service not found")
+            get {
+                call.respond(services)
             }
         }
 
-        // ---- Appointments ----
         route("/appointments") {
-            get {
-                call.respond(BookingRepository.getAllAppointments())
-            }
-
-            get("{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                val appt = id?.let { BookingRepository.getAppointmentById(it) }
-                if (appt != null) {
-                    call.respond(appt)
-                } else call.respond(HttpStatusCode.NotFound, "Appointment not found")
-            }
-
             post {
-                val appt = call.receive<Appointment>()
-                val result = BookingRepository.addAppointment(appt)
-                if (result) {
-                    call.respond(HttpStatusCode.Created, appt)
-                } else {
+                val appointment = call.receive<Appointment>()
+                val service = services.find { it.id == appointment.serviceId }
+                if (service == null) {
+                    call.respond(HttpStatusCode.NotFound, "Service not found.")
+                    return@post
+                }
+
+                val isDoubleBooked = appointments.any {
+                    it.serviceId == appointment.serviceId && it.appointmentTime == appointment.appointmentTime
+                }
+                if (isDoubleBooked) {
                     call.respond(HttpStatusCode.Conflict, "Double booking detected!")
+                } else {
+                    appointments.add(appointment)
+                    call.respond(HttpStatusCode.Created, appointment)
                 }
             }
 
-            put("{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                val appt = call.receive<Appointment>()
-                if (id != null && BookingRepository.updateAppointment(id, appt)) {
-                    call.respond(HttpStatusCode.OK, appt)
-                } else call.respond(HttpStatusCode.NotFound, "Appointment not found")
-            }
-
-            delete("{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                if (id != null && BookingRepository.deleteAppointment(id)) {
-                    call.respond(HttpStatusCode.NoContent)
-                } else call.respond(HttpStatusCode.NotFound, "Appointment not found")
+            get {
+                call.respond(appointments)
             }
         }
     }

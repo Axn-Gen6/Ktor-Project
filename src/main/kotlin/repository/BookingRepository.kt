@@ -30,16 +30,11 @@ object BookingRepository {
         val requestedTime = LocalDateTime.parse(appointment.appointmentTime, formatter)
         val service = services.find { it.id == appointment.serviceId } ?: return false
 
-        val isDoubleBooked = appointments.any {
-            it.serviceId == appointment.serviceId &&
-                    LocalDateTime.parse(it.appointmentTime, formatter) == requestedTime
-        }
-
-        if (isDoubleBooked) return false
-
+        // 🔻 เอา check double booking ออก
         appointments.add(appointment)
         return true
     }
+
 
     fun updateAppointment(id: Int, updated: Appointment): Boolean {
         val index = appointments.indexOfFirst { it.id == id }
